@@ -4,12 +4,11 @@ require 'ostruct'
 
 require File.dirname(__FILE__)+"/../../../../config/boot"
 
-begin ; puts 'asdf'; require 'active_record' ; rescue LoadError; puts "RUBY GEM"; require 'rubygems'; require 'active_record'; end
+begin ; require 'active_record' ; rescue LoadError;  require 'rubygems'; require 'active_record'; end
 
 require 'active_support'
 require 'active_record'
 require 'active_record/version'
-require 'active_record/test_case'
 require 'active_record/fixtures'
 require 'mocha'
 require 'test/unit'
@@ -50,15 +49,29 @@ Dir[ models_dir + '/*.rb'].each { |m| require m }
 
 
 if ActiveRecord::VERSION::STRING < '2.3.1'
+  
   TestCaseSuperClass = Test::Unit::TestCase
   class Test::Unit::TestCase #:nodoc:
     self.use_transactional_fixtures = true
     self.use_instantiated_fixtures = false
-    self.fixtures :all
+    
+    def assert_queries(num = 1)
+      $queries_executed = []
+      yield
+    ensure
+      %w{ BEGIN COMMIT }.each { |x| $queries_executed.delete(x) }
+      assert_equal num, $queries_executed.size, "#{$queries_executed.size} instead of #{num} queries were executed.#{$queries_executed.size == 0 ? '' : "\nQueries:\n#{$queries_executed.join("\n")}"}"
+    end
+
   end
+
   Test::Unit::TestCase.fixture_path = File.dirname(__FILE__) + "/fixtures/"
 else
+
+
+
   TestCaseSuperClass = ActiveRecord::TestCase
+  require 'active_record/test_case'
   class ActiveRecord::TestCase #:nodoc:
     include ActiveRecord::TestFixtures
     self.use_transactional_fixtures = true

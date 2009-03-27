@@ -129,10 +129,10 @@ module ActsAsStaticRecord
       acts_as_static_record_options.update(options) if options
 
       unless acts_as_static_record_options[:skip_finders]
-        extend SmsOnRails::ActsAsStaticRecord::DefineFinderMethods
+        extend ActsAsStaticRecord::DefineFinderMethods
       end
       
-      extend SmsOnRails::ActsAsStaticRecord::SingletonMethods
+      extend ActsAsStaticRecord::SingletonMethods
 
       unless respond_to?(:find_without_static_record)
         klass = class << self; self; end
@@ -225,7 +225,6 @@ module ActsAsStaticRecord
   # This module is designed to define finder methods such as find_by_id to
   # search through the cache if no additional arguments are specified
   # The likelyhood of this working with < Rails 2.3 is pretty low.
-  # TODO: port to Rails 2.2
   module DefineFinderMethods#:nodoc:
 
     #alias chain the finder method to the static_rc method
