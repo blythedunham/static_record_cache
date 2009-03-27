@@ -4,6 +4,10 @@ StaticRecordCache
 This plugin has two options for caching records of Static classes which change rarely or never
 
 
+* Rdoc:           http://snowgiraffe.com/rdocs/static_record_cache/
+* Github Project: http://github.com/blythedunham/static_record_cache/tree/master
+* Install:        script/plugin install git://github.com/blythedunham/static_record_cache.git
+
 
 ==================================
 StaticActiveRecordContext
