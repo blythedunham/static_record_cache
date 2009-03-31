@@ -140,6 +140,11 @@ module ActsAsStaticRecord
       end
 
       define_static_cache_key_finder
+
+      class_eval do
+        before_save    {|record| record.class.clear_static_record_cache }
+        before_destroy {|record| record.class.clear_static_record_cache }
+      end
     end
 
     protected
