@@ -1,7 +1,16 @@
-# == acts_as_static_record
-# Permanently caches subclasses of ActiveRecord that contains data that changes rarely
-# Calls to +find+ on boths IDs and individual fields are cache hits rather than queries
+# =acts_as_static_record
+# Permanently caches subclasses of ActiveRecord that contains data that changes rarely.
 #
+# Includes support for:
+# * Find by Id, all, first (association lookups)
+# * Cached caluculations: <tt>Neighborhood.count</tt>s, sum, max, min
+# * Convenience lookups: <tt>Neighborhood[:seattle]</tt>
+# * Additional support for column name lookups: <tt>Neighborhood.find_by_name 'Seattle'</tt>
+#
+# == Install
+#   script/plugin install git://github.com/blythedunham/static_record_cache.git
+#
+# == Usage
 #   class SomeMostlyStaticClass < ActiveRecord::Base
 #     acts_as_static_record
 #   end
@@ -20,10 +29,10 @@
 # === Options
 # * <tt>:key</tt> - a method or column of the instance used to specify a cache key. This should be unique.
 # * <tt>:find</tt> an additional find scope to specify <tt>:conditions</tt>,<tt>:joins</tt>, <tt>:select</tt>, <tt>:joins</ff> etc
-# * <tt>:skip_finders</tt> - set to true if you do not wish to override finders such as +find_by_id_and_name+ to use a cache search. This option is probably best for pre Rails 2.3
-#  
-# === Examples
+# * <tt>:find_by_attribute_support</tt> - set to true to add additional functionality for finders such as +find_by_id_and_name+ to use a cache search. This option is probably best for Rails 2.3
+# * <tt>:lookup_key</tt> - access the record from the class by a key name like <tt>User[:snowgiraffe]</tt>. <tt>:lookup_key</tt> is the column on which do do the lookup.
 #
+# === Examples
 # Caches on Id and telephone carrier name
 #  class TelephoneCarrier < ActiveRecord::Base
 #    acts_as_static_method :key => :name
@@ -34,7 +43,7 @@
 #    t.column :phone_number_id, :integer, :null => false
 #    t.column :notes, :string, :length => 100, :default => nil
 #  end
-#    
+#
 #  class SmsWhiteList < ActiveRecord::Base
 #    belongs_to :phone_number
 #
@@ -55,6 +64,40 @@
 # Searched cache hits
 #  SmsWhiteList.find_by_notes('Some note')
 #
+# ==Calculation Support
+# Now with +calculate+ support for +sum+, +min+, and +max+ for integer columns and +count+ for all columns
+# Cache hits do not occur if options other than +distinct+ are used.
+#
+# Cache hits:
+#  Neighborhood.count
+#  Neighborhood.count :name, :distinct => true
+#  Neighborhood.sum :id
+#  Neighborhood.max :id
+# Not cache hits:
+#  Neighborhood.max :name
+#  Neighborhood.count :zip_code, :conditions => ['name = ?', 'Seattle']
+#
+# ==Convenience lookup
+# Similar to acts_as_enumeration model returns the record where the
+# <tt>acts_as_static_record :key</tt> option matches +lookup+
+# If no key is specified, the primary_id column is used
+#
+#   class User < ActiveRecord::Base
+#     acts_as_static_record :key => :user_name
+#   end
+#
+# Then later we can reference the objects by the user_name
+#   User[:blythe]
+#   User['snowgiraffe']
+#
+# The key used will be the underscore version of the name. Punctuation marks
+# are removed. The following are equivalent:
+#  User[:blythe_snowgiraffeawesome]
+#  User['blythe-SNOWGIRaffe   AWESome']
+#
+#  user = User.first
+#  User[user.user_name] == user
+#
 # === Developers
 # * Blythe Dunham http://snowgiraffe.com
 #
@@ -69,9 +112,19 @@ module ActsAsStaticRecord
   end
 
   module ClassMethods#:nodoc:
-    # Permanently caches subclasses of ActiveRecord that contains data that changes rarely
-    # Calls to +find+ on boths IDs and individual fields are cache hits rather than queries
+    # =acts_as_static_record
+    # Permanently caches subclasses of ActiveRecord that contains data that changes rarely.
     #
+    # Includes support for:
+    # * Find by Id, all, first (association lookups)
+    # * Cached caluculations: <tt>Neighborhood.count</tt>s, sum, max, min
+    # * Convenience lookups: <tt>Neighborhood[:seattle]</tt>
+    # * Additional support for column name lookups: <tt>Neighborhood.find_by_name 'Seattle'</tt>
+    # 
+    # == Install
+    #   script/plugin install git://github.com/blythedunham/static_record_cache.git
+    #
+    # == Usage
     #   class SomeMostlyStaticClass < ActiveRecord::Base
     #     acts_as_static_record
     #   end
@@ -90,10 +143,10 @@ module ActsAsStaticRecord
     # === Options
     # * <tt>:key</tt> - a method or column of the instance used to specify a cache key. This should be unique.
     # * <tt>:find</tt> an additional find scope to specify <tt>:conditions</tt>,<tt>:joins</tt>, <tt>:select</tt>, <tt>:joins</ff> etc
-    # * <tt>:skip_finders</tt> - set to true if you do not wish to override finders such as +find_by_id_and_name+ to use a cache search. This option is probably best for pre Rails 2.3
+    # * <tt>:find_by_attribute_support</tt> - set to true to add additional functionality for finders such as +find_by_id_and_name+ to use a cache search. This option is probably best for Rails 2.3
+    # * <tt>:lookup_key</tt> - access the record from the class by a key name like <tt>User[:snowgiraffe]</tt>. <tt>:lookup_key</tt> is the column on which do do the lookup.
     #
     # === Examples
-    #
     # Caches on Id and telephone carrier name
     #  class TelephoneCarrier < ActiveRecord::Base
     #    acts_as_static_method :key => :name
@@ -124,19 +177,55 @@ module ActsAsStaticRecord
     #
     # Searched cache hits
     #  SmsWhiteList.find_by_notes('Some note')
+    #
+    # ==Calculation Support
+    # Now with +calculate+ support for +sum+, +min+, and +max+ for integer columns and +count+ for all columns
+    # Cache hits do not occur if options other than +distinct+ are used.
+    #
+    # Cache hits:
+    #  Neighborhood.count
+    #  Neighborhood.count :name, :distinct => true
+    #  Neighborhood.sum :id
+    #  Neighborhood.max :id
+    # Not cache hits:
+    #  Neighborhood.max :name
+    #  Neighborhood.count :zip_code, :conditions => ['name = ?', 'Seattle']
+    #
+    # ==Convenience lookup
+    # Similar to acts_as_enumeration model returns the record where the
+    # <tt>acts_as_static_record :key</tt> option matches +lookup+
+    # If no key is specified, the primary_id column is used
+    #
+    #   class User < ActiveRecord::Base
+    #     acts_as_static_record :key => :user_name
+    #   end
+    #
+    # Then later we can reference the objects by the user_name
+    #   User[:blythe]
+    #   User['snowgiraffe']
+    #
+    # The key used will be the underscore version of the name. Punctuation marks
+    # are removed. The following are equivalent:
+    #  User[:blythe_snowgiraffeawesome]
+    #  User['blythe-SNOWGIRaffe   AWESome']
+    #
+    #  user = User.first
+    #  User[user.user_name] == user
     def acts_as_static_record(options={})
 
       acts_as_static_record_options.update(options) if options
 
-      unless acts_as_static_record_options[:skip_finders]
+      if acts_as_static_record_options[:find_by_attribute_support]
         extend ActsAsStaticRecord::DefineFinderMethods
       end
-      
-      extend ActsAsStaticRecord::SingletonMethods
+
+      extend  ActsAsStaticRecord::SingletonMethods
+      include ActsAsStaticRecord::InstanceMethods
 
       unless respond_to?(:find_without_static_record)
         klass = class << self; self; end
         klass.class_eval "alias_method_chain :find, :static_record"
+        klass.class_eval "alias_method_chain :calculate, :static_record"
       end
 
       define_static_cache_key_finder
@@ -151,7 +240,7 @@ module ActsAsStaticRecord
     # Define a method find_by_KEY if the specified cache key
     # is not an active record column
     def define_static_cache_key_finder#:nodoc:
-      return if acts_as_static_record_options[:skip_finders]
+      return unless acts_as_static_record_options[:find_by_attribute_support]
       #define the key column if it is not a hash column
       if ((key_column = acts_as_static_record_options[:key]) &&
           (!column_methods_hash.include?(key_column.to_sym)))
@@ -164,7 +253,74 @@ module ActsAsStaticRecord
     end
   end
 
-  module SingletonMethods#:nodoc:
+  module InstanceMethods
+    
+    # returns the lookup key for this record
+    # For example if the defintion in +User+ was
+    #   acts_as_static_record :key => :user_name
+    #
+    #  user.user_name
+    #  => "Blythe Snow Giraffe"
+    #
+    #  user.static_record_lookup_key
+    #  => 'blythe_snow_giraffe'
+    #
+    # which could then be used to access the record like
+    #  User['snowgiraffe']
+    #  => <User id: 15, user_name: "Blythe Snow Giraffe">
+    #
+    def static_record_lookup_key
+      self.class.static_record_lookup_key(self)
+    end
+  end
+
+  module SingletonMethods
+
+    # Similar to acts_as_enumeration model returns the record where the
+    # <tt>acts_as_static_record :key</tt> option matches +lookup+
+    # If no key is specified, the primary_id column is used
+    #
+    #   class User < ActiveRecord::Base
+    #     acts_as_static_record :key => :user_name
+    #   end
+    # Then later we can reference the objects by the user_name
+    #   User[:blythe]
+    #   User['snowgiraffe']
+    #
+    # The key used will be the underscore version of the name. Punctuation marks
+    # are removed. The following are equivalent:
+    #  User[:blythe_snowgiraffeawesome]
+    #  User['blythe-SNOWGIRaffe   AWESome']
+    #
+    #  user = User.first
+    #  User[user.user_name] == user
+    def [](lookup_name)
+      (static_record_cache[:lookup]||= begin
+
+        static_record_cache[:primary_key].inject({}) do |lookup, (k,v)|
+
+          lookup[v.static_record_lookup_key] = v
+          lookup
+
+        end
+      end)[static_record_lookup_key(lookup_name)]
+
+    end
+
+    # Parse the lookup key
+    def static_record_lookup_key(value)#:nodoc:
+      if value.is_a? self
+        static_record_lookup_key(
+          value.send(
+            acts_as_static_record_options[:lookup_key] ||
+            acts_as_static_record_options[:key] ||
+            primary_key
+          )
+        )
+      else
+        value.to_s.gsub(' ', '_').gsub(/\W/, "").underscore
+      end
+    end
 
     # Search the cache for records with the specified attributes
     #
@@ -173,7 +329,7 @@ module ActsAsStaticRecord
     # * +attributes+ - a hash map of fields (or methods) => values
     #
     #   User.find_in_static_cache(:first, {:password => 'fun', :user_name => 'giraffe'})
-    def find_in_static_record_cache(finder, attributes)
+    def find_in_static_record_cache(finder, attributes)#:nodoc:
       list = static_record_cache[:primary_key].values.inject([]) do |list, record|
         unless attributes.select{|k,v| record.send(k).to_s != v.to_s}.any?
           return record if finder == :first
@@ -187,7 +343,7 @@ module ActsAsStaticRecord
     # Perform find by searching through the static record cache
     # if only an id is specified
     def find_with_static_record(*args)#:nodoc:
-      if args
+      if scope(:find).nil? && args
         if args.first.is_a?(Fixnum) &&
             ((args.length == 1 ||
             (args[1].is_a?(Hash) && args[1].values.delete(nil).nil?)))
@@ -198,6 +354,48 @@ module ActsAsStaticRecord
       end
 
       find_without_static_record(*args)
+    end
+
+    # Override calculate to compute data in memory if possible
+    # Only processes results if there is no scope and the no keys other than distinct
+    def calculate_with_static_record(operation, column_name, options={})#:nodoc:
+      if scope(:find).nil? && !options.any?{ |k,v| k.to_s.downcase != 'distinct' }
+        key = "#{operation}_#{column_name}_#{options.none?{|k,v| v.blank? }}"
+        static_record_cache[:calc][key]||=
+          case operation.to_s
+          when 'count' then
+              #count the cache if we want all or the unique primary key
+              if ['all', '', '*', primary_key].include?(column_name.to_s)
+                static_record_cache[:primary_key].length
+
+              #otherwise compute the length of the output
+              else
+                static_records_for_calculation(column_name, options) {|records| records.length }
+              end
+          #compute the method directly on the result array
+          when 'sum', 'max', 'min' then
+
+              if columns_hash[column_name.to_s].try(:type) == :integer
+                static_records_for_calculation(column_name, options) {|records| records.send(operation).to_i }
+              end
+
+          end
+
+        return static_record_cache[:calc][key] if static_record_cache[:calc][key]
+
+      end
+      calculate_without_static_record(operation, column_name, options)
+    end
+
+    # Return the array of results to calculate if they are available
+    def static_records_for_calculation(column_name, options={}, &block)#:nodoc:
+      if columns_hash.has_key?(column_name.to_s)
+        records = static_record_cache[:primary_key].values.collect(&(column_name.to_sym)).compact
+        results = (options[:distinct]||options['distinct']) ? records.uniq : records
+        block ? yield(results) : results
+      else
+        nil
+      end
     end
 
     # Clear (and reload) the record cache
@@ -216,7 +414,7 @@ module ActsAsStaticRecord
     def initialize_static_record_cache#:nodoc:
       return unless @static_record_cache.nil?
       records = self.find_without_static_record(:all, acts_as_static_record_options[:find]||{})
-      @static_record_cache = records.inject({:primary_key => {}, :key => {}}) do |cache, record|
+      @static_record_cache = records.inject({:primary_key => {}, :key => {}, :calc => {}}) do |cache, record|
         cache[:primary_key][record.send(self.primary_key)] = record
         if acts_as_static_record_options[:key]
           cache[:key][record.send(acts_as_static_record_options[:key])] = record
