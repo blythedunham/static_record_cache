@@ -10,6 +10,9 @@ Includes support for:
 * Additional support for column name lookups: <tt>Neighborhood.find_by_name 'Seattle'</tt>
 
 == Install
+
+  sudo gem install static_record_cache --source=http://gemcutter.org
+
   script/plugin install git://github.com/blythedunham/static_record_cache.git
 
 == Usage
