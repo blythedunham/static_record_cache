@@ -109,6 +109,8 @@ module ActsAsStaticRecord
     base.send :class_inheritable_hash, :acts_as_static_record_options
     base.acts_as_static_record_options = {}
     base.extend ClassMethods
+    base.send :class_inheritable_accessor, :static_record_cache_store
+    base.static_record_cache_store = ActiveSupport::Cache::MemoryStore.new
   end
 
   module ClassMethods#:nodoc:
@@ -229,7 +231,7 @@ module ActsAsStaticRecord
       end
 
       define_static_cache_key_finder
-
+@
       class_eval do
         before_save    {|record| record.class.clear_static_record_cache }
         before_destroy {|record| record.class.clear_static_record_cache }
@@ -400,21 +402,20 @@ module ActsAsStaticRecord
 
     # Clear (and reload) the record cache
     def clear_static_record_cache
-      @static_record_cache = nil
+      static_record_cache_store.delete('static_record_cache')
     end
 
     # The static record cache
     def static_record_cache
-      @static_record_cache||= initialize_static_record_cache
+      static_record_cache_store.fetch('static_record_cache') { initialize_static_record_cache }
     end
 
     protected
 
     # Find all the record and initialize the cache
     def initialize_static_record_cache#:nodoc:
-      return unless @static_record_cache.nil?
       records = self.find_without_static_record(:all, acts_as_static_record_options[:find]||{})
-      @static_record_cache = records.inject({:primary_key => {}, :key => {}, :calc => {}}) do |cache, record|
+      records.inject({:primary_key => {}, :key => {}, :calc => {}}) do |cache, record|
         cache[:primary_key][record.send(self.primary_key)] = record
         if acts_as_static_record_options[:key]
           cache[:key][record.send(acts_as_static_record_options[:key])] = record
